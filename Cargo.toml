@@ -1,0 +1,37 @@
+[workspace]
+members = ["example"]
+
+[package]
+name = "geng-web-audio-api"
+version = "0.1.0"
+authors = ["kuviman"]
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+anyhow = "1"
+futures = "0.3"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "AudioContext",
+    "AudioNode",
+    "AudioListener",
+    "PannerNode",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "GainNode",
+    "AudioParam",
+    "AudioDestinationNode",
+    "DistanceModelType",
+] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+web-audio-api = "0.45"
+
+[dev-dependencies]
+batbox-time = "0.16"
+batbox-file = "0.16"
