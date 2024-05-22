@@ -3,6 +3,9 @@ members = ["example"]
 
 [package]
 name = "geng-web-audio-api"
+description = "web audio api that works both native and on web"
+license = "MIT"
+repository = "https://github.com/geng-engine/web-audio-api"
 version = "0.1.0"
 authors = ["kuviman"]
 edition = "2021"
