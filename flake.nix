@@ -33,6 +33,7 @@
             alsaLib
             rust
             trunk
+            cargo-outdated
           ];
         };
       }
