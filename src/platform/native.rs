@@ -37,7 +37,8 @@ impl AudioContext {
             web_audio_api::context::AudioContextOptions {
                 latency_hint: if cfg!(target_os = "linux") {
                     // See notes on Linux in web_audio_api crate
-                    web_audio_api::context::AudioContextLatencyCategory::Playback
+                    // web_audio_api::context::AudioContextLatencyCategory::Playback
+                    web_audio_api::context::AudioContextLatencyCategory::Custom(0.055)
                 } else {
                     web_audio_api::context::AudioContextLatencyCategory::Interactive
                 },
