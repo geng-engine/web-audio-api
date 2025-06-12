@@ -237,3 +237,47 @@ impl AudioBufferSourceNode {
         self.0.position()
     }
 }
+
+pub struct BiquadFilterNode(web_audio_api::node::BiquadFilterNode);
+
+impl BiquadFilterNode {
+    pub fn new(context: &AudioContext) -> Self {
+        Self(web_audio_api::node::BiquadFilterNode::new(
+            &*context.0,
+            web_audio_api::node::BiquadFilterOptions::default(),
+        ))
+    }
+
+    pub fn get_ref(&self) -> AudioNodeRef<'_> {
+        &self.0
+    }
+
+    pub fn frequency(&self) -> AudioParam {
+        AudioParam(self.0.frequency().clone())
+    }
+
+    pub fn gain(&self) -> AudioParam {
+        AudioParam(self.0.gain().clone())
+    }
+
+    pub fn q(&self) -> AudioParam {
+        AudioParam(self.0.q().clone())
+    }
+
+    pub fn detune(&self) -> AudioParam {
+        AudioParam(self.0.detune().clone())
+    }
+
+    pub fn set_type(&mut self, r#type: crate::BiquadFilterType) {
+        self.0.set_type(match r#type {
+            crate::BiquadFilterType::Lowpass => web_audio_api::node::BiquadFilterType::Lowpass,
+            crate::BiquadFilterType::Highpass => web_audio_api::node::BiquadFilterType::Highpass,
+            crate::BiquadFilterType::Bandpass => web_audio_api::node::BiquadFilterType::Bandpass,
+            crate::BiquadFilterType::Notch => web_audio_api::node::BiquadFilterType::Notch,
+            crate::BiquadFilterType::Allpass => web_audio_api::node::BiquadFilterType::Allpass,
+            crate::BiquadFilterType::Peaking => web_audio_api::node::BiquadFilterType::Peaking,
+            crate::BiquadFilterType::Lowshelf => web_audio_api::node::BiquadFilterType::Lowshelf,
+            crate::BiquadFilterType::Highshelf => web_audio_api::node::BiquadFilterType::Highshelf,
+        });
+    }
+}

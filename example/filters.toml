@@ -1,0 +1,19 @@
+[[filters]]
+type = "lowpass"
+q = 1
+frequence = 100
+
+[[filters]]
+type = "lowpass"
+q = 1
+frequence = 100
+
+[[filters]]
+type = "lowpass"
+q = 1
+frequence = 100
+
+[[filters]]
+type = "lowpass"
+q = 1
+frequence = 100

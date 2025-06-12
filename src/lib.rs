@@ -190,3 +190,121 @@ impl AudioNode for AudioBufferSourceNode {
         self.0.get_ref()
     }
 }
+
+/// Biquad filter types
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BiquadFilterType {
+    /// Allows frequencies below the cutoff frequency to pass through and
+    /// attenuates frequencies above the cutoff. (12dB/oct rolloff)
+    Lowpass,
+    /// Frequencies above the cutoff frequency are passed through, but
+    /// frequencies below the cutoff are attenuated. (12dB/oct rolloff)
+    Highpass,
+    /// Allows a range of frequencies to pass through and attenuates the
+    /// frequencies below and above this frequency range.
+    Bandpass,
+    /// Allows all frequencies through, except for a set of frequencies.
+    Notch,
+    /// Allows all frequencies through, but changes the phase relationship
+    /// between the various frequencies.
+    Allpass,
+    /// Allows all frequencies through, but adds a boost (or attenuation) to
+    /// a range of frequencies.
+    Peaking,
+    /// Allows all frequencies through, but adds a boost (or attenuation) to
+    /// the lower frequencies.
+    Lowshelf,
+    /// Allows all frequencies through, but adds a boost (or attenuation) to
+    /// the higher frequencies.
+    Highshelf,
+}
+
+impl serde::Serialize for BiquadFilterType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        format!("{self}").serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for BiquadFilterType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Incorrect biquad filter type")]
+pub struct IncorrectBiquadFilterType;
+
+impl std::str::FromStr for BiquadFilterType {
+    type Err = IncorrectBiquadFilterType;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "lowpass" => Self::Lowpass,
+            "highpass" => Self::Highpass,
+            "bandpass" => Self::Bandpass,
+            "notch" => Self::Notch,
+            "allpass" => Self::Allpass,
+            "peaking" => Self::Peaking,
+            "lowshelf" => Self::Lowshelf,
+            "highshelf" => Self::Highshelf,
+            _ => return Err(IncorrectBiquadFilterType),
+        })
+    }
+}
+
+impl std::fmt::Display for BiquadFilterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            BiquadFilterType::Lowpass => "lowpass",
+            BiquadFilterType::Highpass => "highpass",
+            BiquadFilterType::Bandpass => "bandpass",
+            BiquadFilterType::Notch => "notch",
+            BiquadFilterType::Allpass => "allpass",
+            BiquadFilterType::Peaking => "peaking",
+            BiquadFilterType::Lowshelf => "lowshelf",
+            BiquadFilterType::Highshelf => "highshelf",
+        };
+        s.fmt(f)
+    }
+}
+
+pub struct BiquadFilterNode(platform::BiquadFilterNode);
+
+impl BiquadFilterNode {
+    pub fn new(context: &AudioContext) -> Self {
+        Self(platform::BiquadFilterNode::new(&context.0))
+    }
+
+    pub fn frequency(&self) -> AudioParam {
+        AudioParam(self.0.frequency())
+    }
+
+    pub fn gain(&self) -> AudioParam {
+        AudioParam(self.0.gain())
+    }
+
+    pub fn q(&self) -> AudioParam {
+        AudioParam(self.0.q())
+    }
+
+    pub fn detune(&self) -> AudioParam {
+        AudioParam(self.0.detune())
+    }
+
+    pub fn set_type(&mut self, r#type: crate::BiquadFilterType) {
+        self.0.set_type(r#type);
+    }
+}
+
+impl AudioNode for BiquadFilterNode {
+    fn raw(&self) -> platform::AudioNodeRef<'_> {
+        self.0.get_ref()
+    }
+}
