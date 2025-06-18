@@ -30,8 +30,9 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs;[
             pkg-config
-            alsaLib
+            alsa-lib
             rust
+            just
             trunk
             cargo-outdated
           ];
