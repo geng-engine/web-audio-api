@@ -40,9 +40,10 @@ async fn run() {
             .linear_ramp_to_value_at_time(10_000.0, audio.current_time() + 20.0);
         filter.q().set_value(1.0);
         filter.set_type(audio::BiquadFilterType::Lowpass);
-        source.connect(&filter);
-        filter.connect(&panner);
-        panner.connect(&audio.destination());
+        source
+            .connect(&filter)
+            .connect(&panner)
+            .connect(&audio.destination());
         source.start_with_offset(0.0);
     };
     #[cfg(not(target_arch = "wasm32"))]
