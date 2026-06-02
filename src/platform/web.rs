@@ -39,6 +39,37 @@ impl AudioContext {
         Ok(AudioBuffer(buffer.into()))
     }
 
+    /// Convert raw samples to an AudioBuffer
+    ///
+    /// The outer Vec determine the channels. The inner Vecs should have the same length.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if:
+    /// - the given sample rate is zero
+    /// - the given number of channels defined by `samples.len()`is outside the
+    ///   [1, 32] range, 32 being defined by the MAX_CHANNELS constant.
+    /// - any of its items have different lengths
+    pub async fn sound_from_buffer(
+        &self,
+        samples: Vec<Vec<f32>>,
+        sample_rate: f32,
+    ) -> anyhow::Result<AudioBuffer> {
+        let length = samples.first().map_or(0, |c| c.len());
+        let options = web_sys::AudioBufferOptions::new(length as u32, sample_rate);
+        options.set_number_of_channels(samples.len() as u32);
+
+        let mut buffer = web_sys::AudioBuffer::new(&options)
+            .map_err(|e| anyhow!("failed to construct a new audio buffer: {e:?}"))?;
+        for (i, channel) in samples.iter().enumerate() {
+            buffer
+                .copy_to_channel(&channel, i as i32)
+                .map_err(|e| anyhow!("failed to copy data into audio buffer: {e:?}"))?;
+        }
+
+        Ok(AudioBuffer(buffer.into()))
+    }
+
     pub fn current_time(&self) -> f64 {
         self.0.current_time()
     }
