@@ -71,14 +71,12 @@ impl AudioContext {
     /// - the given number of channels defined by `samples.len()`is outside the
     ///   [1, 32] range, 32 being defined by the MAX_CHANNELS constant.
     /// - any of its items have different lengths
-    pub async fn sound_from_buffer(
+    pub fn sound_from_buffer(
         &self,
         samples: Vec<Vec<f32>>,
         sample_rate: f32,
     ) -> anyhow::Result<AudioBuffer> {
-        Ok(AudioBuffer(
-            self.0.sound_from_buffer(samples, sample_rate).await?,
-        ))
+        Ok(AudioBuffer(self.0.sound_from_buffer(samples, sample_rate)?))
     }
 
     pub fn current_time(&self) -> f64 {
