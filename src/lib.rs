@@ -41,6 +41,15 @@ impl AudioParam {
     }
 }
 
+// TODO: web
+pub struct WorkletNode(web_audio_api::worklet::AudioWorkletNode);
+
+impl AudioNode for WorkletNode {
+    fn raw(&self) -> platform::AudioNodeRef<'_> {
+        &self.0
+    }
+}
+
 pub struct AudioContext(platform::AudioContext);
 
 impl AudioContext {
@@ -77,6 +86,14 @@ impl AudioContext {
         sample_rate: f32,
     ) -> anyhow::Result<AudioBuffer> {
         Ok(AudioBuffer(self.0.sound_from_buffer(samples, sample_rate)?))
+    }
+
+    pub fn timestretch(
+        &self,
+        samples: Vec<Vec<f32>>,
+        speed_ratio: f32,
+    ) -> anyhow::Result<WorkletNode> {
+        Ok(WorkletNode(self.0.timestretch(samples, speed_ratio)?))
     }
 
     pub fn current_time(&self) -> f64 {
@@ -197,6 +214,10 @@ impl AudioBufferSourceNode {
 
     pub fn start_with_offset(&mut self, offset: f64) {
         self.0.start_with_offset(offset);
+    }
+
+    pub fn start_at_with_offset(&mut self, when: f64, offset: f64) {
+        self.0.start_at_with_offset(when, offset);
     }
 
     pub fn stop(&mut self) {

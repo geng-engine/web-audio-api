@@ -264,6 +264,10 @@ impl AudioBufferSourceNode {
             .start_with_when_and_grain_offset(self.0.context().current_time(), offset);
     }
 
+    pub fn start_at_with_offset(&mut self, when: f64, offset: f64) {
+        self.0.start_with_when_and_grain_offset(when, offset);
+    }
+
     pub fn stop(&mut self) {
         self.0.stop();
     }

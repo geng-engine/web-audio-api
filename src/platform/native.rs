@@ -87,8 +87,154 @@ impl AudioContext {
         ))))
     }
 
+    pub fn timestretch(
+        &self,
+        samples: Vec<Vec<f32>>,
+        speed_ratio: f32,
+    ) -> anyhow::Result<web_audio_api::worklet::AudioWorkletNode> {
+        use std::collections::HashMap;
+        use web_audio_api::{
+            node::{AudioNodeOptions, ChannelCountMode, ChannelInterpretation},
+            worklet::{AudioWorkletNode, AudioWorkletNodeOptions},
+        };
+
+        let channel_count = samples.len();
+        Ok(AudioWorkletNode::new::<timestretch::TimeStretchProcessor>(
+            &*self.0,
+            AudioWorkletNodeOptions {
+                number_of_inputs: 1,
+                number_of_outputs: 1,
+                output_channel_count: vec![channel_count],
+                parameter_data: HashMap::new(),
+                processor_options: (samples, speed_ratio),
+                audio_node_options: AudioNodeOptions {
+                    channel_count,
+                    channel_count_mode: ChannelCountMode::Max,
+                    channel_interpretation: ChannelInterpretation::Discrete,
+                },
+            },
+        ))
+    }
+
     pub fn current_time(&self) -> f64 {
         self.0.current_time()
+    }
+}
+
+mod timestretch {
+    use web_audio_api::worklet::{
+        AudioParamValues, AudioWorkletGlobalScope, AudioWorkletProcessor,
+    };
+
+    const CHUNK_SIZE: usize = 128;
+    const SAMPLES_PER_OP: usize = 128;
+
+    pub struct TimeStretchProcessor {
+        sound: Vec<Vec<f32>>,
+        speed_ratio: f32,
+        state_left: TimeStretchState,
+        state_right: TimeStretchState,
+    }
+
+    struct TimeStretchState {
+        next_i: usize,
+        shifter: pitch_shift::Shifter<Box<[f32; pitch_shift::TOTAL_F32]>>,
+        output_buffer: Vec<f32>,
+        remaining_samples: f32,
+    }
+
+    impl TimeStretchProcessor {
+        /// Instantiate the internal DSP engine allocations
+        pub fn new(sound: Vec<Vec<f32>>, speed_ratio: f32) -> Self {
+            Self {
+                sound,
+                speed_ratio: speed_ratio.clamp(0.2, 5.0),
+                state_left: TimeStretchState::new(),
+                state_right: TimeStretchState::new(),
+            }
+        }
+    }
+
+    impl TimeStretchState {
+        pub fn new() -> Self {
+            Self {
+                next_i: 0,
+                shifter: pitch_shift::Shifter::new(
+                    vec![0.0; pitch_shift::TOTAL_F32].try_into().unwrap(),
+                ),
+                output_buffer: Vec::new(),
+                remaining_samples: 0.0,
+            }
+        }
+    }
+
+    // Implement the official Web Audio API AudioWorkletProcessor trait
+    impl AudioWorkletProcessor for TimeStretchProcessor {
+        type ProcessorOptions = (Vec<Vec<f32>>, f32); // Pass initial stretching ratio as options token
+
+        fn constructor(options: Self::ProcessorOptions) -> Self {
+            Self::new(options.0, options.1)
+        }
+
+        fn process<'a, 'b>(
+            &mut self,
+            inputs: &'b [&'a [&'a [f32]]],
+            outputs: &'b mut [&'a mut [&'a mut [f32]]],
+            _params: AudioParamValues<'b>,
+            scope: &'b AudioWorkletGlobalScope,
+        ) -> bool {
+            // Fallback protection if inputs or outputs are detached/empty
+            if inputs.is_empty() || outputs.is_empty() {
+                return false;
+            }
+
+            let input_buffer = &inputs[0];
+            let output_buffer = &mut outputs[0];
+
+            if input_buffer.is_empty() || output_buffer.is_empty() {
+                return false;
+            }
+
+            for (channel_i, output_frames) in output_buffer.iter_mut().enumerate() {
+                debug_assert_eq!(output_frames.len(), CHUNK_SIZE);
+
+                let state = if channel_i == 0 {
+                    &mut self.state_left
+                } else {
+                    &mut self.state_right
+                };
+
+                if state.next_i + SAMPLES_PER_OP >= self.sound[0].len() {
+                    // Out of samples
+                    return false;
+                }
+
+                while state.output_buffer.len() < CHUNK_SIZE {
+                    // Process next chunk
+                    let chunk = &self.sound[channel_i][state.next_i..state.next_i + SAMPLES_PER_OP];
+
+                    let out_samples = SAMPLES_PER_OP as f32 / self.speed_ratio;
+                    state.remaining_samples += out_samples.fract();
+                    let out_samples: usize =
+                        (out_samples.floor() + state.remaining_samples.floor()) as usize;
+                    state.remaining_samples = state.remaining_samples.fract();
+
+                    let out_chunk = state
+                        .shifter
+                        .shift(chunk, 0.0, out_samples, scope.sample_rate);
+                    state.output_buffer.extend_from_slice(out_chunk);
+                    state.next_i += SAMPLES_PER_OP;
+                }
+
+                // Return the next chunk
+                for (i, f) in state.output_buffer.drain(..CHUNK_SIZE).enumerate() {
+                    output_frames[i] = f;
+                }
+            }
+            debug_assert_eq!(self.state_left.next_i, self.state_right.next_i);
+
+            true
+        }
     }
 }
 
@@ -247,6 +393,10 @@ impl AudioBufferSourceNode {
     pub fn start_with_offset(&mut self, offset: f64) {
         self.0
             .start_at_with_offset(self.0.context().current_time(), offset);
+    }
+
+    pub fn start_at_with_offset(&mut self, when: f64, offset: f64) {
+        self.0.start_at_with_offset(when, offset);
     }
 
     pub fn stop(&mut self) {
