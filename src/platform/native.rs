@@ -90,6 +90,7 @@ impl AudioContext {
     pub fn timestretch(
         &self,
         samples: Vec<Vec<f32>>,
+        sample_rate: f32,
         speed_ratio: f32,
     ) -> anyhow::Result<web_audio_api::worklet::AudioWorkletNode> {
         use std::collections::HashMap;
@@ -106,7 +107,7 @@ impl AudioContext {
                 number_of_outputs: 1,
                 output_channel_count: vec![channel_count],
                 parameter_data: HashMap::new(),
-                processor_options: (samples, speed_ratio),
+                processor_options: (samples, sample_rate, speed_ratio),
                 audio_node_options: AudioNodeOptions {
                     channel_count,
                     channel_count_mode: ChannelCountMode::Max,
@@ -126,14 +127,24 @@ mod timestretch {
         AudioParamValues, AudioWorkletGlobalScope, AudioWorkletProcessor,
     };
 
+    use crate::WorkletSourceMessage;
+
     const CHUNK_SIZE: usize = 128;
     const SAMPLES_PER_OP: usize = 128;
 
+    // TODO: check for memory leak (processors might not get dropped when sound is no longer used)
     pub struct TimeStretchProcessor {
         sound: Vec<Vec<f32>>,
+        sample_rate: f32,
         speed_ratio: f32,
         state_left: TimeStretchState,
         state_right: TimeStretchState,
+        state: State,
+    }
+
+    enum State {
+        Paused,
+        Playing,
     }
 
     struct TimeStretchState {
@@ -144,13 +155,14 @@ mod timestretch {
     }
 
     impl TimeStretchProcessor {
-        /// Instantiate the internal DSP engine allocations
-        pub fn new(sound: Vec<Vec<f32>>, speed_ratio: f32) -> Self {
+        pub fn new(sound: Vec<Vec<f32>>, sample_rate: f32, speed_ratio: f32) -> Self {
             Self {
                 sound,
+                sample_rate,
                 speed_ratio: speed_ratio.clamp(0.2, 5.0),
                 state_left: TimeStretchState::new(),
                 state_right: TimeStretchState::new(),
+                state: State::Paused,
             }
         }
     }
@@ -170,10 +182,10 @@ mod timestretch {
 
     // Implement the official Web Audio API AudioWorkletProcessor trait
     impl AudioWorkletProcessor for TimeStretchProcessor {
-        type ProcessorOptions = (Vec<Vec<f32>>, f32); // Pass initial stretching ratio as options token
+        type ProcessorOptions = (Vec<Vec<f32>>, f32, f32);
 
         fn constructor(options: Self::ProcessorOptions) -> Self {
-            Self::new(options.0, options.1)
+            Self::new(options.0, options.1, options.2)
         }
 
         fn process<'a, 'b>(
@@ -183,16 +195,20 @@ mod timestretch {
             _params: AudioParamValues<'b>,
             scope: &'b AudioWorkletGlobalScope,
         ) -> bool {
+            if let State::Paused = self.state {
+                return true;
+            }
+
             // Fallback protection if inputs or outputs are detached/empty
             if inputs.is_empty() || outputs.is_empty() {
-                return false;
+                return true;
             }
 
             let input_buffer = &inputs[0];
             let output_buffer = &mut outputs[0];
 
             if input_buffer.is_empty() || output_buffer.is_empty() {
-                return false;
+                return true;
             }
 
             for (channel_i, output_frames) in output_buffer.iter_mut().enumerate() {
@@ -206,7 +222,7 @@ mod timestretch {
 
                 if state.next_i + SAMPLES_PER_OP >= self.sound[0].len() {
                     // Out of samples
-                    return false;
+                    return true;
                 }
 
                 while state.output_buffer.len() < CHUNK_SIZE {
@@ -234,6 +250,23 @@ mod timestretch {
             debug_assert_eq!(self.state_left.next_i, self.state_right.next_i);
 
             true
+        }
+
+        fn onmessage(&mut self, msg: &mut dyn std::any::Any) {
+            if let Some(&msg) = msg.downcast_ref::<WorkletSourceMessage>() {
+                match msg {
+                    WorkletSourceMessage::Start { offset } => {
+                        for state in [&mut self.state_left, &mut self.state_right] {
+                            state.output_buffer.clear();
+                            state.next_i = (offset * self.sample_rate as f64) as usize;
+                        }
+                        self.state = State::Playing;
+                    }
+                    WorkletSourceMessage::Stop => {
+                        self.state = State::Paused;
+                    }
+                }
+            }
         }
     }
 }

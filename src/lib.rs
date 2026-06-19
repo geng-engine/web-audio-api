@@ -42,11 +42,53 @@ impl AudioParam {
 }
 
 // TODO: web
-pub struct WorkletNode(web_audio_api::worklet::AudioWorkletNode);
+pub struct WorkletSourceNode {
+    node: web_audio_api::worklet::AudioWorkletNode,
+}
 
-impl AudioNode for WorkletNode {
+#[derive(Clone, Copy)]
+enum WorkletSourceMessage {
+    Start { offset: f64 },
+    Stop,
+}
+
+impl WorkletSourceNode {
+    fn new(node: web_audio_api::worklet::AudioWorkletNode) -> Self {
+        Self { node }
+    }
+
+    pub fn start_with_offset(&mut self, offset: f64) {
+        self.node
+            .port()
+            .post_message(WorkletSourceMessage::Start { offset });
+    }
+
+    // pub fn start_at_with_offset(&mut self, when: f64, offset: f64) {
+    //     self.node.port().post_message(WorkletSourceMessage::Start {
+    //         offset,
+    //     });
+    // }
+
+    pub fn stop(&mut self) {
+        self.node.port().post_message(WorkletSourceMessage::Stop);
+    }
+
+    // pub fn stop_at(&mut self, when: f64) {
+    //     self.node
+    //         .port()
+    //         .post_message(WorkletSourceMessage::Stop { when: Some(when) });
+    // }
+
+    pub fn position(&self) -> f64 {
+        // TODO
+        0.0
+        // self.node.position()
+    }
+}
+
+impl AudioNode for WorkletSourceNode {
     fn raw(&self) -> platform::AudioNodeRef<'_> {
-        &self.0
+        &self.node
     }
 }
 
@@ -91,9 +133,14 @@ impl AudioContext {
     pub fn timestretch(
         &self,
         samples: Vec<Vec<f32>>,
+        sample_rate: f32,
         speed_ratio: f32,
-    ) -> anyhow::Result<WorkletNode> {
-        Ok(WorkletNode(self.0.timestretch(samples, speed_ratio)?))
+    ) -> anyhow::Result<WorkletSourceNode> {
+        Ok(WorkletSourceNode::new(self.0.timestretch(
+            samples,
+            sample_rate,
+            speed_ratio,
+        )?))
     }
 
     pub fn current_time(&self) -> f64 {
