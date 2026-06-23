@@ -57,7 +57,7 @@ mod worklet {
     }
 
     #[derive(Clone, Copy)]
-    enum WorkletSourceMessage {
+    pub(crate) enum WorkletSourceMessage {
         Start { offset: f64 },
         Stop,
     }
