@@ -41,54 +41,65 @@ impl AudioParam {
     }
 }
 
+pub use self::worklet::*;
+
 // TODO: web
-pub struct WorkletSourceNode {
-    node: web_audio_api::worklet::AudioWorkletNode,
-}
+#[cfg(target_arch = "wasm32")]
+mod worklet {}
+#[cfg(not(target_arch = "wasm32"))]
+mod worklet {
+    use super::*;
 
-#[derive(Clone, Copy)]
-enum WorkletSourceMessage {
-    Start { offset: f64 },
-    Stop,
-}
-
-impl WorkletSourceNode {
-    fn new(node: web_audio_api::worklet::AudioWorkletNode) -> Self {
-        Self { node }
+    /// A node that generates an audio stream in an audio worklet.
+    /// NOTE: At the moment only implemented on native targets.
+    pub struct WorkletSourceNode {
+        node: web_audio_api::worklet::AudioWorkletNode,
     }
 
-    pub fn start_with_offset(&mut self, offset: f64) {
-        self.node
-            .port()
-            .post_message(WorkletSourceMessage::Start { offset });
+    #[derive(Clone, Copy)]
+    enum WorkletSourceMessage {
+        Start { offset: f64 },
+        Stop,
     }
 
-    // pub fn start_at_with_offset(&mut self, when: f64, offset: f64) {
-    //     self.node.port().post_message(WorkletSourceMessage::Start {
-    //         offset,
-    //     });
-    // }
+    impl WorkletSourceNode {
+        pub(crate) fn new(node: web_audio_api::worklet::AudioWorkletNode) -> Self {
+            Self { node }
+        }
 
-    pub fn stop(&mut self) {
-        self.node.port().post_message(WorkletSourceMessage::Stop);
+        pub fn start_with_offset(&mut self, offset: f64) {
+            self.node
+                .port()
+                .post_message(WorkletSourceMessage::Start { offset });
+        }
+
+        // pub fn start_at_with_offset(&mut self, when: f64, offset: f64) {
+        //     self.node.port().post_message(WorkletSourceMessage::Start {
+        //         offset,
+        //     });
+        // }
+
+        pub fn stop(&mut self) {
+            self.node.port().post_message(WorkletSourceMessage::Stop);
+        }
+
+        // pub fn stop_at(&mut self, when: f64) {
+        //     self.node
+        //         .port()
+        //         .post_message(WorkletSourceMessage::Stop { when: Some(when) });
+        // }
+
+        // pub fn position(&self) -> f64 {
+        //     // TODO
+        //     0.0
+        //     // self.node.position()
+        // }
     }
 
-    // pub fn stop_at(&mut self, when: f64) {
-    //     self.node
-    //         .port()
-    //         .post_message(WorkletSourceMessage::Stop { when: Some(when) });
-    // }
-
-    pub fn position(&self) -> f64 {
-        // TODO
-        0.0
-        // self.node.position()
-    }
-}
-
-impl AudioNode for WorkletSourceNode {
-    fn raw(&self) -> platform::AudioNodeRef<'_> {
-        &self.node
+    impl AudioNode for WorkletSourceNode {
+        fn raw(&self) -> platform::AudioNodeRef<'_> {
+            &self.node
+        }
     }
 }
 
@@ -130,6 +141,9 @@ impl AudioContext {
         Ok(AudioBuffer(self.0.sound_from_buffer(samples, sample_rate)?))
     }
 
+    // TODO: web
+    #[cfg(not(target_arch = "wasm32"))]
+    /// NOTE: At the moment only implemented on native targets.
     pub fn timestretch(
         &self,
         samples: Vec<Vec<f32>>,
